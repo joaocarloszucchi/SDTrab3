@@ -13,6 +13,7 @@ public class StableMulticast {
     private IStableMulticast client;
     private int clientId;
     private int[][] vectorClock;
+    private boolean[] activeClocks;
     private List<Message> buffer;
     private List<InetSocketAddress> multicastGroup;
     private DatagramSocket unicastSocket;
@@ -25,6 +26,10 @@ public class StableMulticast {
         this.client = client;
         this.buffer = new ArrayList<>();
         this.vectorClock = new int[maxSize][maxSize];
+        this.activeClocks = new boolean[maxSize];
+        for (int i = 0; i < maxSize; i++) {
+            this.activeClocks[i] = false;
+        }
         this.multicastGroup = Collections.synchronizedList(new ArrayList<>());
 
         try {
@@ -41,6 +46,7 @@ public class StableMulticast {
 
         // Add the current client to the multicast group and determine the client ID
         this.clientId = 0;
+        this.activeClocks[this.clientId] = true;
         joinMulticastGroup(new InetSocketAddress(this.ip, this.port));
 
         // Start a thread to listen for incoming messages
@@ -112,6 +118,9 @@ public class StableMulticast {
                 if (message.startsWith("ID:")) {
                     int receivedId = Integer.parseInt(message.substring("ID:".length()));
                     this.clientId = Math.max(this.clientId, receivedId + 1);
+                    this.activeClocks[receivedId] = true;
+                    this.activeClocks[this.clientId] = true;
+
                 } else {
                     synchronized (buffer) {
                         if (!buffer.contains(msg)) {
@@ -121,8 +130,11 @@ public class StableMulticast {
                         }
                     }
 
-                    // Updates the VC and discard possible messages
+                    // Updates the VC
                     this.updatesVectorClock(msg.getSenderId(), msg.getVectorClock());
+
+                    //checks if any message can be removed
+                    this.checksBuffer();
                 }
             }
         } catch (IOException | ClassNotFoundException e) {
@@ -233,6 +245,26 @@ public class StableMulticast {
                 System.out.print(matrix[i][j] + " ");
             }
             System.out.println();
+        }
+    }
+
+    private void checksBuffer(){
+        synchronized (this.buffer) {
+            Iterator<Message> iterator = buffer.iterator();
+            while (iterator.hasNext()) {
+                Message msg = iterator.next();
+                boolean canBeDiscarded = true;
+                for (int i = 0; i < maxSize; i++) {
+                    if (activeClocks[i] && vectorClock[i][msg.getSenderId()] < msg.getVectorClock()[msg.getSenderId()]) {
+                        canBeDiscarded = false;
+                        break;
+                    }
+                }
+                if (canBeDiscarded) {
+                    System.out.println("\nDiscarding message\n");
+                    iterator.remove();
+                }
+            }
         }
     }
 }
