@@ -25,7 +25,7 @@ public class Client implements IStableMulticast {
         boolean keep = true;
         while (keep) {
             System.out.print("\nClient id = " + stableMulticast.getClientId());
-            System.out.print("\nOptions:\n1 Send multicast message\n2 See buffer\n3 Show vector clock\n4 Exit\n");
+            System.out.print("\nOptions:\n1 Send multicast message\n2 See buffer\n3 Show vector clock\n4 Exit\n5 See Active Vector\n");
             String input = scanner.nextLine();
             
             switch(input){
@@ -48,6 +48,9 @@ public class Client implements IStableMulticast {
                 System.out.print("Exiting group:\n");
                     stableMulticast.exitGroup();
                     return;
+                case "5":
+                    stableMulticast.printActiveVector();
+                    break;
             }
         }
     }

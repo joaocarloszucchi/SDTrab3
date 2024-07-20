@@ -5,7 +5,7 @@ import java.io.*;
 import java.util.*;
 
 public class StableMulticast {
-    public static int maxSize = 3;
+    public static int maxSize = 4;
     public static String groupIp = "230.0.0.0";
     public static Integer groupPort = 4446;
     private String ip;
@@ -47,7 +47,7 @@ public class StableMulticast {
 
         // Add the current client to the multicast group and determine the client ID
         this.clientId = 0;
-        this.activeClocks[this.clientId] = true;
+        //this.activeClocks[this.clientId] = true;
         joinMulticastGroup(new InetSocketAddress(this.ip, this.port));
 
         // Start a thread to listen for incoming messages
@@ -158,6 +158,9 @@ public class StableMulticast {
                 String operation = parts[0];
                 String senderIp = parts[1];
                 int senderPort = Integer.parseInt(parts[2]);
+                System.out.println(operation);
+                System.out.println(senderIp);
+                System.out.println(senderPort);
                 //ignores if you are the sender
                 if (senderIp == this.ip && senderPort == this.port){
                     return;
@@ -171,6 +174,7 @@ public class StableMulticast {
                         }
                     }
                     Message messageId = new Message("ID:" + this.clientId, getPersonalVectorClock(), this.clientId);
+                    activeClock();
                     sendUnicastMessage(newClient, messageId);
                 } 
                 else if (operation.equals("Exit")) {
@@ -295,6 +299,22 @@ public class StableMulticast {
             System.out.println("Successfully left the multicast group.");
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    public void printActiveVector(){
+        for (int i = 0; i < maxSize; i++){
+            System.out.println(this.activeClocks[i]);
+        }
+    }
+
+    private void activeClock(){
+        for(int i = 0; i < maxSize; i++){
+            if(activeClocks[i] == false){
+                System.out.println("Activating INDEX " + i);
+                activeClocks[i] = true;
+                return;
+            }
         }
     }
 }
