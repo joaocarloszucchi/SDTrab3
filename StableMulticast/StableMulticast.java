@@ -51,7 +51,7 @@ public class StableMulticast {
     private void joinMulticastGroup(InetSocketAddress newClient) {
         // Send a message to the group to announce the new client and request the current members
         this.multicastGroup.add(newClient);
-        sendGroupMessage("NewClient:" + newClient.toString());
+        sendGroupMessage("NewClient:" + newClient.getAddress().getHostAddress() + ":" + newClient.getPort());
     }
 
     public void sendUnicastMessage(InetSocketAddress member, Message message) {
@@ -97,6 +97,12 @@ public class StableMulticast {
 
                 // Add the sender to the multicast group if not already present
                 InetSocketAddress senderAddress = new InetSocketAddress(packet.getAddress(), packet.getPort());
+
+                // Check if the sender is yourself
+                if (senderAddress.getAddress().getHostAddress().equals(this.ip) && senderAddress.getPort() == this.port) {
+                    continue; // Skip processing the message from yourself
+                }
+
                 synchronized (multicastGroup) {
                     if (!multicastGroup.contains(senderAddress)) {
                         multicastGroup.add(senderAddress);
@@ -129,22 +135,21 @@ public class StableMulticast {
                 byte[] recvBuf = new byte[1024];
                 DatagramPacket packet = new DatagramPacket(recvBuf, recvBuf.length);
                 this.groupSocket.receive(packet);
+
                 String message = new String(packet.getData(), 0, packet.getLength());
 
                 String[] parts = message.split(":");
+                String operation = parts[0];
                 String senderIp = parts[1];
                 int senderPort = Integer.parseInt(parts[2]);
 
-                //ignores you are the sender
+                //ignores if you are the sender
                 if (senderIp == this.ip && senderPort == this.port){
-                    System.out.println("IGNORING");
                     return;
                 }
 
-                if (message.startsWith("NewClient:")) {
-                    String clientInfo = message.substring("NewClient:".length());
-                    InetSocketAddress newClient = new InetSocketAddress(
-                            clientInfo.split(":")[0].replace("/", ""), Integer.parseInt(clientInfo.split(":")[1]));
+                if (operation.equals("NewClient")) {
+                    InetSocketAddress newClient = new InetSocketAddress(senderIp, senderPort);
                     synchronized (this.multicastGroup) {
                         if (!this.multicastGroup.contains(newClient)) {
                             this.multicastGroup.add(newClient);
@@ -152,10 +157,8 @@ public class StableMulticast {
                     }
                     Message messageId = new Message("ID:" + this.clientId, vectorClock);
                     sendUnicastMessage(newClient, messageId);
-                } else if (message.startsWith("Member:")) {
-                    String clientInfo = message.substring("Member:".length());
-                    InetSocketAddress member = new InetSocketAddress(
-                            clientInfo.split(":")[0].replace("/", ""), Integer.parseInt(clientInfo.split(":")[1]));
+                } else if (operation.equals("Member")) {
+                    InetSocketAddress member = new InetSocketAddress(senderIp, senderPort);
                     synchronized (this.multicastGroup) {
                         if (!this.multicastGroup.contains(member)) {
                             this.multicastGroup.add(member);
