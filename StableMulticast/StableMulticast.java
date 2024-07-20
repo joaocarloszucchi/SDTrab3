@@ -54,13 +54,12 @@ public class StableMulticast {
         sendGroupMessage("NewClient:" + newClient.toString());
     }
 
-    public void sendUnicastMessage(InetSocketAddress member, String message) {
+    public void sendUnicastMessage(InetSocketAddress member, Message message) {
         try {
-            Message msg = new Message(message, vectorClock);
             ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
             ObjectOutputStream os = new ObjectOutputStream(new BufferedOutputStream(byteStream));
             os.flush();
-            os.writeObject(msg);
+            os.writeObject(message);
             os.flush();
 
             byte[] sendBuf = byteStream.toByteArray();
@@ -109,19 +108,15 @@ public class StableMulticast {
                     this.clientId = Math.max(this.clientId, receivedId + 1);
                 } else {
                     synchronized (buffer) {
-                        buffer.add(msg);
+                        if (!buffer.contains(msg)) {
+                            buffer.add(msg);
+                            // Deliver the message to the client
+                            client.deliver(msg.content);
+                        }
                     }
-
-                    // Deliver the message to the client
-                    client.deliver(msg.content);
 
                     // Updates the VC and discard possible messages
                 }
-
-                // Deliver the message to the client
-                client.deliver(msg.content);
-
-                // Updates the VC and discard possible messages
             }
         } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();
@@ -134,8 +129,17 @@ public class StableMulticast {
                 byte[] recvBuf = new byte[1024];
                 DatagramPacket packet = new DatagramPacket(recvBuf, recvBuf.length);
                 this.groupSocket.receive(packet);
-
                 String message = new String(packet.getData(), 0, packet.getLength());
+
+                String[] parts = message.split(":");
+                String senderIp = parts[1];
+                int senderPort = Integer.parseInt(parts[2]);
+
+                //ignores you are the sender
+                if (senderIp == this.ip && senderPort == this.port){
+                    System.out.println("IGNORING");
+                    return;
+                }
 
                 if (message.startsWith("NewClient:")) {
                     String clientInfo = message.substring("NewClient:".length());
@@ -146,9 +150,9 @@ public class StableMulticast {
                             this.multicastGroup.add(newClient);
                         }
                     }
-                    sendUnicastMessage(newClient, "ID:" + this.clientId);
-                }
-                else if (message.startsWith("Member:")) {
+                    Message messageId = new Message("ID:" + this.clientId, vectorClock);
+                    sendUnicastMessage(newClient, messageId);
+                } else if (message.startsWith("Member:")) {
                     String clientInfo = message.substring("Member:".length());
                     InetSocketAddress member = new InetSocketAddress(
                             clientInfo.split(":")[0].replace("/", ""), Integer.parseInt(clientInfo.split(":")[1]));
@@ -158,11 +162,35 @@ public class StableMulticast {
                         }
                     }
                 }
-
-                System.out.println("Current multicast group(receive): " + this.multicastGroup);
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public void msend(String msg){
+        //updates clock
+
+
+        //puts in buffer
+        
+        Message message = new Message(msg, vectorClock);
+        
+        synchronized (this.buffer) {
+            buffer.add(message);
+        }
+
+        //sends via multicast
+        for(InetSocketAddress member: multicastGroup){
+            sendUnicastMessage(member, message);
+        }
+    }
+
+    public List<Message> getBuffer(){
+        return this.buffer;
+    }
+
+    public int[][] getVectorClock(){
+        return this.vectorClock;
     }
 }
