@@ -45,6 +45,8 @@ public class Client implements IStableMulticast {
                     stableMulticast.printVectorClock(stableMulticast.getVectorClock());
                     break;
                 case "4":
+                System.out.print("Exiting group:\n");
+                    stableMulticast.exitGroup();
                     return;
             }
         }

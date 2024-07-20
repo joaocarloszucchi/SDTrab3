@@ -19,6 +19,7 @@ public class StableMulticast {
     private DatagramSocket unicastSocket;
     private MulticastSocket groupSocket;
     private InetAddress group;
+    private volatile boolean running = true;  // Flag to signal when to stop threads
 
     public StableMulticast(String ip, Integer port, IStableMulticast client) throws IOException {
         this.ip = ip;
@@ -89,7 +90,7 @@ public class StableMulticast {
 
     private void receiveUnicastMessages() {
         try {
-            while (true) {
+            while (running) {
                 byte[] recvBuf = new byte[1024];
                 DatagramPacket packet = new DatagramPacket(recvBuf, recvBuf.length);
                 this.unicastSocket.receive(packet);
@@ -138,13 +139,15 @@ public class StableMulticast {
                 }
             }
         } catch (IOException | ClassNotFoundException e) {
-            e.printStackTrace();
+            if(running){
+                e.printStackTrace();
+            }
         }
     }
 
     private void receiveGroupMessages() {
         try {
-            while (true) {
+            while (running) {
                 byte[] recvBuf = new byte[1024];
                 DatagramPacket packet = new DatagramPacket(recvBuf, recvBuf.length);
                 this.groupSocket.receive(packet);
@@ -155,7 +158,6 @@ public class StableMulticast {
                 String operation = parts[0];
                 String senderIp = parts[1];
                 int senderPort = Integer.parseInt(parts[2]);
-
                 //ignores if you are the sender
                 if (senderIp == this.ip && senderPort == this.port){
                     return;
@@ -170,17 +172,20 @@ public class StableMulticast {
                     }
                     Message messageId = new Message("ID:" + this.clientId, getPersonalVectorClock(), this.clientId);
                     sendUnicastMessage(newClient, messageId);
-                } else if (operation.equals("Member")) {
-                    InetSocketAddress member = new InetSocketAddress(senderIp, senderPort);
+                } 
+                else if (operation.equals("Exit")) {
+                    InetSocketAddress leavingClient = new InetSocketAddress(senderIp, senderPort);
+                    int exitId = Integer.parseInt(parts[3]);
+                    activeClocks[exitId] = false;
                     synchronized (this.multicastGroup) {
-                        if (!this.multicastGroup.contains(member)) {
-                            this.multicastGroup.add(member);
-                        }
+                        this.multicastGroup.remove(leavingClient);
                     }
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            if(running){
+                e.printStackTrace();
+            }
         }
     }
 
@@ -195,9 +200,16 @@ public class StableMulticast {
             buffer.add(message);
         }
 
+        Scanner scanner = new Scanner(System.in);
+
         //sends via multicast
-        for(InetSocketAddress member: multicastGroup){
-            sendUnicastMessage(member, message);
+        for (InetSocketAddress member : multicastGroup) {
+            System.out.println("Send message to " + member + "? (y/n)");
+            String response = scanner.nextLine().trim().toLowerCase();
+    
+            if (response.equals("y")) {
+                sendUnicastMessage(member, message);
+            }
         }
     }
 
@@ -265,6 +277,24 @@ public class StableMulticast {
                     iterator.remove();
                 }
             }
+        }
+    }
+
+    public void exitGroup() {
+        try {
+            sendGroupMessage("Exit:" + this.ip + ":" + this.port + ":" + this.clientId);
+            // Leave the multicast group
+            NetworkInterface networkInterface = NetworkInterface.getByInetAddress(InetAddress.getLocalHost());
+            this.groupSocket.leaveGroup(new InetSocketAddress(this.group, groupPort), networkInterface);
+
+            // Close the sockets
+            this.running = false;
+            this.unicastSocket.close();
+            this.groupSocket.close();
+
+            System.out.println("Successfully left the multicast group.");
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 }
