@@ -13,4 +13,12 @@ public class Message implements Serializable {
         this.content = content;
         this.vectorClock = vectorClock;
     }
+
+    public int getSenderId(){
+        return senderId;
+    }
+
+    public int[][] getVectorClock(){
+        return vectorClock;
+    }
 }

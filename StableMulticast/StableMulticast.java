@@ -40,7 +40,7 @@ public class StableMulticast {
         }
 
         // Add the current client to the multicast group and determine the client ID
-        this.clientId = -1;
+        this.clientId = 0;
         joinMulticastGroup(new InetSocketAddress(this.ip, this.port));
 
         // Start a thread to listen for incoming messages
@@ -122,6 +122,7 @@ public class StableMulticast {
                     }
 
                     // Updates the VC and discard possible messages
+                    this.updatesVectorClock(msg.getSenderId(), msg.getVectorClock());
                 }
             }
         } catch (IOException | ClassNotFoundException e) {
@@ -173,12 +174,11 @@ public class StableMulticast {
 
     public void msend(String msg){
         //updates clock
+        incrementsVectorClock();
 
+        Message message = new Message(msg, vectorClock);
 
         //puts in buffer
-        
-        Message message = new Message(msg, vectorClock);
-        
         synchronized (this.buffer) {
             buffer.add(message);
         }
@@ -195,5 +195,22 @@ public class StableMulticast {
 
     public int[][] getVectorClock(){
         return this.vectorClock;
+    }
+
+    private void incrementsVectorClock(){
+        synchronized(this.vectorClock){
+            this.vectorClock[this.clientId][this.clientId]++;
+        }
+    }
+
+    private void updatesVectorClock(int senderId, int[][] senderVectorClock){
+        /*
+        synchronized(this.vectorClock){
+            this.vectorClock[this.clientId][this.clientId]++;
+        }*/
+    }
+
+    public int getClientId(){
+        return this.clientId;
     }
 }
