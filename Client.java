@@ -42,20 +42,11 @@ public class Client implements IStableMulticast {
                     break;
                 case "3":
                     System.out.print("Showing Vector Clock:\n");
-                    printVectorClock(this.stableMulticast.getVectorClock());
+                    stableMulticast.printVectorClock(stableMulticast.getVectorClock());
                     break;
                 case "4":
                     return;
             }
-        }
-    }
-
-    private void printVectorClock(int [][] vectorClock){
-        for (int i = 0; i < vectorClock.length; i++) {
-            for (int j = 0; j < vectorClock[i].length; j++) {
-                System.out.print(vectorClock[i][j] + " ");
-            }
-            System.out.println();
         }
     }
 

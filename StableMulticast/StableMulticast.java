@@ -156,7 +156,7 @@ public class StableMulticast {
                             this.multicastGroup.add(newClient);
                         }
                     }
-                    Message messageId = new Message("ID:" + this.clientId, vectorClock);
+                    Message messageId = new Message("ID:" + this.clientId, getPersonalVectorClock(), this.clientId);
                     sendUnicastMessage(newClient, messageId);
                 } else if (operation.equals("Member")) {
                     InetSocketAddress member = new InetSocketAddress(senderIp, senderPort);
@@ -176,7 +176,7 @@ public class StableMulticast {
         //updates clock
         incrementsVectorClock();
 
-        Message message = new Message(msg, vectorClock);
+        Message message = new Message(msg, getPersonalVectorClock(), this.clientId);
 
         //puts in buffer
         synchronized (this.buffer) {
@@ -197,20 +197,42 @@ public class StableMulticast {
         return this.vectorClock;
     }
 
+    public int[] getPersonalVectorClock(){
+        int[] vector = new int[maxSize];
+        for(int i = 0; i < maxSize; i++){
+            vector[i] = vectorClock[clientId][i];
+        }
+        return vector;
+    }
+
     private void incrementsVectorClock(){
         synchronized(this.vectorClock){
             this.vectorClock[this.clientId][this.clientId]++;
         }
     }
 
-    private void updatesVectorClock(int senderId, int[][] senderVectorClock){
-        /*
+    private void updatesVectorClock(int senderId, int[] senderVectorClock){
+        
         synchronized(this.vectorClock){
-            this.vectorClock[this.clientId][this.clientId]++;
-        }*/
+            for(int i = 0; i < maxSize; i++){
+                
+                this.vectorClock[senderId][i] = Math.max(this.vectorClock[senderId][i], senderVectorClock[i]);
+            }
+            this.vectorClock[this.clientId][senderId]++;
+        }
+        
     }
 
     public int getClientId(){
         return this.clientId;
+    }
+
+    public void printVectorClock(int [][] matrix){
+        for (int i = 0; i < matrix.length; i++) {
+            for (int j = 0; j < matrix[i].length; j++) {
+                System.out.print(matrix[i][j] + " ");
+            }
+            System.out.println();
+        }
     }
 }
