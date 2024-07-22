@@ -5,15 +5,11 @@ import java.util.Scanner;
 import StableMulticast.*;
 
 public class Client implements IStableMulticast {
-    private String ip;
-    private Integer port;
     private StableMulticast stableMulticast;
     private ArrayList<String> chatMessages;
 
     // Constructor initializes the client with IP, port, and sets up multicast
     public Client(String ip, Integer port) throws IOException {
-        this.ip = ip;
-        this.port = port;
         this.stableMulticast = new StableMulticast(ip, port, this);
         this.chatMessages = new ArrayList<>();
     }
@@ -51,9 +47,12 @@ public class Client implements IStableMulticast {
                 case "5":
                     System.out.print("Exiting group:\n");
                     stableMulticast.exitGroup();
-                    return;
+                    keep = false;
+                    break;
             }
         }
+        scanner.close();
+        return;
     }
 
     // Delivers a received message to the client

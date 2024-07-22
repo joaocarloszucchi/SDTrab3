@@ -195,9 +195,11 @@ public class StableMulticast {
 
         for (InetSocketAddress member : multicastGroup) {
             System.out.println("Send message to " + member);
-            String response = scanner.nextLine().trim().toLowerCase();
+            scanner.nextLine().trim().toLowerCase();
             sendUnicastMessage(member, message);
         }
+
+        scanner.close();
 
         this.checksBuffer();
     }
