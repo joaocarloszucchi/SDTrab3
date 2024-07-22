@@ -10,14 +10,15 @@ public class Client implements IStableMulticast {
     private StableMulticast stableMulticast;
     private ArrayList<String> chatMessages;
 
+    // Constructor initializes the client with IP, port, and sets up multicast
     public Client(String ip, Integer port) throws IOException {
         this.ip = ip;
         this.port = port;
-
         this.stableMulticast = new StableMulticast(ip, port, this);
         this.chatMessages = new ArrayList<>();
     }
 
+    // Runs the client, allowing the user to send messages and perform other actions
     public void run() {
         Scanner scanner = new Scanner(System.in);
         System.out.println("Type a message or 'exit' to leave:");
@@ -25,7 +26,7 @@ public class Client implements IStableMulticast {
         boolean keep = true;
         while (keep) {
             System.out.print("\nClient id = " + stableMulticast.getClientId());
-            System.out.print("\nOptions:\n1 Send multicast message\n2 See buffer\n3 Show vector clock\n4 Exit\n5 See Active Vector\n");
+            System.out.print("\nOptions:\n1 Send multicast message\n2 See buffer\n3 Show vector clock\n4 See Active Vector\n5 Exit\n");
             String input = scanner.nextLine();
             
             switch(input){
@@ -45,16 +46,17 @@ public class Client implements IStableMulticast {
                     stableMulticast.printVectorClock(stableMulticast.getVectorClock());
                     break;
                 case "4":
-                System.out.print("Exiting group:\n");
-                    stableMulticast.exitGroup();
-                    return;
-                case "5":
                     stableMulticast.printActiveVector();
                     break;
+                case "5":
+                    System.out.print("Exiting group:\n");
+                    stableMulticast.exitGroup();
+                    return;
             }
         }
     }
 
+    // Delivers a received message to the client
     @Override
     public void deliver(String msg) {
         if (!msg.startsWith("ID:")) {
@@ -63,6 +65,7 @@ public class Client implements IStableMulticast {
         }
     }
 
+    // Main method to start the client with provided IP and port
     public static void main(String[] args) throws NumberFormatException, IOException {
         if (args.length != 2) {
             System.out.println("You need to pass both the IP and the port");
@@ -70,7 +73,6 @@ public class Client implements IStableMulticast {
         }
 
         Client client = new Client(args[0], Integer.parseInt(args[1]));
-
         client.run();
     }
 }

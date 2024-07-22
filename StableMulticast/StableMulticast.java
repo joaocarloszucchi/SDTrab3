@@ -5,9 +5,9 @@ import java.io.*;
 import java.util.*;
 
 public class StableMulticast {
-    public static int maxSize = 4;
-    public static String groupIp = "230.0.0.0";
-    public static Integer groupPort = 4446;
+    public static int maxSize = 4; // Maximum number of clients
+    public static String groupIp = "230.0.0.0"; // Multicast group IP
+    public static Integer groupPort = 4446; // Multicast group port
     private String ip;
     private Integer port;
     private IStableMulticast client;
@@ -19,8 +19,9 @@ public class StableMulticast {
     private DatagramSocket unicastSocket;
     private MulticastSocket groupSocket;
     private InetAddress group;
-    private volatile boolean running = true;  // Flag to signal when to stop threads
+    private volatile boolean running = true;
 
+    // Constructor to initialize StableMulticast with IP, port, and client reference
     public StableMulticast(String ip, Integer port, IStableMulticast client) throws IOException {
         this.ip = ip;
         this.port = port;
@@ -38,29 +39,26 @@ public class StableMulticast {
             this.groupSocket = new MulticastSocket(groupPort);
             this.group = InetAddress.getByName(groupIp);
 
-            // Use the new joinGroup method with NetworkInterface
             NetworkInterface networkInterface = NetworkInterface.getByInetAddress(InetAddress.getLocalHost());
             this.groupSocket.joinGroup(new InetSocketAddress(this.group, groupPort), networkInterface);
         } catch (SocketException e) {
             e.printStackTrace();
         }
 
-        // Add the current client to the multicast group and determine the client ID
         this.clientId = 0;
-        //this.activeClocks[this.clientId] = true;
         joinMulticastGroup(new InetSocketAddress(this.ip, this.port));
 
-        // Start a thread to listen for incoming messages
         new Thread(this::receiveUnicastMessages).start();
         new Thread(this::receiveGroupMessages).start();
     }
 
+    // Adds a new client to the multicast group
     private void joinMulticastGroup(InetSocketAddress newClient) {
-        // Send a message to the group to announce the new client and request the current members
         this.multicastGroup.add(newClient);
         sendGroupMessage("NewClient:" + newClient.getAddress().getHostAddress() + ":" + newClient.getPort());
     }
 
+    // Sends a unicast message to a specific group member
     public void sendUnicastMessage(InetSocketAddress member, Message message) {
         try {
             ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
@@ -78,6 +76,7 @@ public class StableMulticast {
         }
     }
 
+    // Sends a group message to all members
     private void sendGroupMessage(String message) {
         try {
             byte[] sendBuf = message.getBytes();
@@ -88,6 +87,7 @@ public class StableMulticast {
         }
     }
 
+    // Receives unicast messages from other clients
     private void receiveUnicastMessages() {
         try {
             while (running) {
@@ -101,13 +101,10 @@ public class StableMulticast {
                 is.close();
 
                 String message = msg.content;
-
-                // Add the sender to the multicast group if not already present
                 InetSocketAddress senderAddress = new InetSocketAddress(packet.getAddress(), packet.getPort());
 
-                // Check if the sender is yourself
                 if (senderAddress.getAddress().getHostAddress().equals(this.ip) && senderAddress.getPort() == this.port) {
-                    continue; // Skip processing the message from yourself
+                    continue;
                 }
 
                 synchronized (multicastGroup) {
@@ -126,15 +123,11 @@ public class StableMulticast {
                     synchronized (buffer) {
                         if (!buffer.contains(msg)) {
                             buffer.add(msg);
-                            // Deliver the message to the client
                             client.deliver(msg.content);
                         }
                     }
 
-                    // Updates the VC
                     this.updatesVectorClock(msg.getSenderId(), msg.getVectorClock());
-
-                    //checks if any message can be removed
                     this.checksBuffer();
                 }
             }
@@ -145,6 +138,7 @@ public class StableMulticast {
         }
     }
 
+    // Receives group messages from the multicast group
     private void receiveGroupMessages() {
         try {
             while (running) {
@@ -153,15 +147,10 @@ public class StableMulticast {
                 this.groupSocket.receive(packet);
 
                 String message = new String(packet.getData(), 0, packet.getLength());
-
                 String[] parts = message.split(":");
                 String operation = parts[0];
                 String senderIp = parts[1];
                 int senderPort = Integer.parseInt(parts[2]);
-                System.out.println(operation);
-                System.out.println(senderIp);
-                System.out.println(senderPort);
-                //ignores if you are the sender
                 if (senderIp == this.ip && senderPort == this.port){
                     return;
                 }
@@ -193,38 +182,37 @@ public class StableMulticast {
         }
     }
 
+    // Sends a multicast message
     public void msend(String msg){
-        //updates clock
         incrementsVectorClock();
-
         Message message = new Message(msg, getPersonalVectorClock(), this.clientId);
 
-        //puts in buffer
         synchronized (this.buffer) {
             buffer.add(message);
         }
 
         Scanner scanner = new Scanner(System.in);
 
-        //sends via multicast
         for (InetSocketAddress member : multicastGroup) {
-            System.out.println("Send message to " + member + "? (y/n)");
+            System.out.println("Send message to " + member);
             String response = scanner.nextLine().trim().toLowerCase();
-    
-            if (response.equals("y")) {
-                sendUnicastMessage(member, message);
-            }
+            sendUnicastMessage(member, message);
         }
+
+        this.checksBuffer();
     }
 
+    // Returns the current buffer of messages
     public List<Message> getBuffer(){
         return this.buffer;
     }
 
+    // Returns the current vector clock matrix
     public int[][] getVectorClock(){
         return this.vectorClock;
     }
 
+    // Returns the vector clock of the current client
     public int[] getPersonalVectorClock(){
         int[] vector = new int[maxSize];
         for(int i = 0; i < maxSize; i++){
@@ -233,28 +221,34 @@ public class StableMulticast {
         return vector;
     }
 
+    // Increments the vector clock of the current client
     private void incrementsVectorClock(){
         synchronized(this.vectorClock){
             this.vectorClock[this.clientId][this.clientId]++;
         }
     }
 
+    // Updates the vector clock with a received vector clock
     private void updatesVectorClock(int senderId, int[] senderVectorClock){
-        
+        System.out.println("\n");
+        this.printVectorClock(this.vectorClock);
+        System.out.println("\n");
         synchronized(this.vectorClock){
             for(int i = 0; i < maxSize; i++){
-                
                 this.vectorClock[senderId][i] = Math.max(this.vectorClock[senderId][i], senderVectorClock[i]);
             }
             this.vectorClock[this.clientId][senderId]++;
         }
-        
+        this.printVectorClock(this.vectorClock);
+        System.out.println("\n");
     }
 
+    // Returns the client ID
     public int getClientId(){
         return this.clientId;
     }
 
+    // Prints the vector clock matrix
     public void printVectorClock(int [][] matrix){
         for (int i = 0; i < matrix.length; i++) {
             for (int j = 0; j < matrix[i].length; j++) {
@@ -264,6 +258,7 @@ public class StableMulticast {
         }
     }
 
+    // Checks the buffer to discard messages that are stable
     private void checksBuffer(){
         synchronized (this.buffer) {
             Iterator<Message> iterator = buffer.iterator();
@@ -277,21 +272,21 @@ public class StableMulticast {
                     }
                 }
                 if (canBeDiscarded) {
-                    System.out.println("\nDiscarding message\n");
+                    System.out.println("\nDISCARDING: " + msg.content);
                     iterator.remove();
                 }
             }
         }
     }
 
+    // Exits the multicast group
     public void exitGroup() {
         try {
             sendGroupMessage("Exit:" + this.ip + ":" + this.port + ":" + this.clientId);
-            // Leave the multicast group
+
             NetworkInterface networkInterface = NetworkInterface.getByInetAddress(InetAddress.getLocalHost());
             this.groupSocket.leaveGroup(new InetSocketAddress(this.group, groupPort), networkInterface);
 
-            // Close the sockets
             this.running = false;
             this.unicastSocket.close();
             this.groupSocket.close();
@@ -302,16 +297,17 @@ public class StableMulticast {
         }
     }
 
+    // Prints the active vector
     public void printActiveVector(){
         for (int i = 0; i < maxSize; i++){
             System.out.println(this.activeClocks[i]);
         }
     }
 
+    // Activates a clock for a new client
     private void activeClock(){
         for(int i = 0; i < maxSize; i++){
             if(activeClocks[i] == false){
-                System.out.println("Activating INDEX " + i);
                 activeClocks[i] = true;
                 return;
             }
