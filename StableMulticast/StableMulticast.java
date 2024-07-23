@@ -5,7 +5,7 @@ import java.io.*;
 import java.util.*;
 
 public class StableMulticast {
-    public static int maxSize = 4; // Maximum number of clients
+    public static int maxSize = 3; // Maximum number of clients
     public static String groupIp = "230.0.0.0"; // Multicast group IP
     public static Integer groupPort = 4446; // Multicast group port
     private String ip;
@@ -198,8 +198,6 @@ public class StableMulticast {
             scanner.nextLine().trim().toLowerCase();
             sendUnicastMessage(member, message);
         }
-
-        scanner.close();
 
         this.checksBuffer();
     }
